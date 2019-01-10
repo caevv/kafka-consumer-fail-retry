@@ -74,16 +74,16 @@ func (c consumer) consume(handler func() error, attempt int) error {
 
 		switch eventType := event.(type) {
 		case *confluentkafka.Message:
-			// deserialize message
+			log.Println("deserialize message")
 
 			err = handler()
 			if err != nil {
 				return errors.Wrap(err, "failed to handle message")
 			}
 
-			// commit
+			log.Println("commit")
 		case confluentkafka.PartitionEOF:
-			return errors.New("reached end of queue")
+			log.Println("reached end of queue")
 		case confluentkafka.Error:
 			return eventType
 		default:
@@ -129,6 +129,16 @@ func (producer producer) produce(topic string, message []byte) error {
 	if m.TopicPartition.Error != nil {
 		return errors.Wrap(m.TopicPartition.Error, "delivery failed")
 	}
+
+	log.Printf("message inserted on queue: %v. message key: %v, message: %v, topic: %v, offset: %v, partition: %v, timestamp: %v",
+		topic,
+		string(m.Key),
+		spew.Sdump(m.Value),
+		*m.TopicPartition.Topic,
+		m.TopicPartition.Offset,
+		m.TopicPartition.Partition,
+		m.Timestamp,
+	)
 
 	close(deliveryChan)
 

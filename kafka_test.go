@@ -1,6 +1,8 @@
 package kafka
 
 import (
+	"log"
+	"sync"
 	"testing"
 	"time"
 
@@ -8,8 +10,10 @@ import (
 )
 
 func TestConsumer_Fail_Retry(t *testing.T) {
-	maxAttempts := 2
-	retryEnabled := true
+	var (
+		maxAttempts  = 2
+		retryEnabled = true
+	)
 
 	consumer, err := newConsumer(
 		"kafka-broker:9092",
@@ -23,6 +27,26 @@ func TestConsumer_Fail_Retry(t *testing.T) {
 		t.Fatalf("failed to create new consumer: %v", err)
 	}
 
+	var (
+		calledTimes = 0
+		wg          sync.WaitGroup
+	)
+
+	wg.Add(maxAttempts)
+	go func() {
+		err = consumer.consume(func() error {
+			defer wg.Done()
+			calledTimes++
+			log.Printf("called times: %v", calledTimes)
+			return errors.New("something went wrong")
+		}, 1)
+		if err != nil {
+			log.Printf("failed to consume: %v", err)
+		}
+	}()
+
+	time.Sleep(15 * time.Second)
+
 	producer, err := newProducer("kafka-broker:9092")
 	if err != nil {
 		t.Fatalf("failed to create new producer: %v", err)
@@ -33,16 +57,23 @@ func TestConsumer_Fail_Retry(t *testing.T) {
 		t.Fatalf("failed to produce message: %v", err)
 	}
 
-	i := 0
-	err = consumer.consume(func() error {
-		i += 1
-		return errors.New("something went wrong")
-	}, 1)
-	if err != nil {
-		t.Fatalf("failed to consume: %v", err)
-	}
+	waitTimeout(&wg, 30*time.Second)
 
-	if i != 2 {
-		t.Fatalf("expected %v attempts, got: %v", maxAttempts, i)
+	if calledTimes != maxAttempts {
+		t.Fatalf("expected %v attempts, got: %v", maxAttempts, calledTimes)
+	}
+}
+
+func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	c := make(chan struct{})
+	go func() {
+		defer close(c)
+		wg.Wait()
+	}()
+	select {
+	case <-c:
+		return false // completed normally
+	case <-time.After(timeout):
+		return true // timed out
 	}
 }
