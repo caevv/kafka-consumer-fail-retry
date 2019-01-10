@@ -1,0 +1,4 @@
+language: minimal
+
+script:
+  - docker-compose run kafka-test

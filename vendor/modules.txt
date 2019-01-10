@@ -1,0 +1,6 @@
+# github.com/confluentinc/confluent-kafka-go v0.11.4
+github.com/confluentinc/confluent-kafka-go/kafka
+# github.com/davecgh/go-spew v1.1.1
+github.com/davecgh/go-spew/spew
+# github.com/pkg/errors v0.8.1
+github.com/pkg/errors
