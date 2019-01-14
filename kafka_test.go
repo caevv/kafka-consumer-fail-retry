@@ -9,39 +9,54 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	broker = "kafka-broker:9092"
+	group  = "test-group"
+	topic  = "test-topic"
+)
+
 func TestConsumer_Fail_Retry(t *testing.T) {
 	var (
-		maxAttempts  = 2
-		retryEnabled = true
+		maxAttempts     = 2
+		backoffDuration = 1 * time.Second
+		calledTimes     = 0
+		wg              sync.WaitGroup
 	)
 
-	consumer, err := newConsumer(
-		"kafka-broker:9092",
-		"test-group",
-		"test-topic",
-		retryEnabled,
-		maxAttempts,
-		1*time.Second,
-	)
+	consumer, err := newConsumer(broker, group, topic)
 	if err != nil {
 		t.Fatalf("failed to create new consumer: %v", err)
 	}
 
-	var (
-		calledTimes = 0
-		wg          sync.WaitGroup
-	)
-
 	wg.Add(maxAttempts)
 	go func() {
-		err = consumer.consume(func() error {
+		attempt := 1
+		handler := func() error {
 			defer wg.Done()
 			calledTimes++
 			log.Printf("called times: %v", calledTimes)
 			return errors.New("something went wrong")
-		}, 1)
+		}
+		err = consumer.consume(handler, attempt)
 		if err != nil {
 			log.Printf("failed to consume: %v", err)
+			err = consumer.close()
+			if err != nil {
+				log.Printf("failed to close consumer: %v", err)
+			}
+			for attempt++; attempt <= maxAttempts; attempt++ {
+				time.Sleep(backoffDuration)
+				log.Printf("attempt: %v", attempt)
+				consumer, err = newConsumer(broker, group, topic)
+				err = consumer.consume(handler, attempt)
+				if err != nil {
+					log.Printf("failed to consume: %v", err)
+					err = consumer.close()
+					if err != nil {
+						log.Printf("failed to close consumer: %v", err)
+					}
+				}
+			}
 		}
 	}()
 

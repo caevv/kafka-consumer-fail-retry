@@ -2,24 +2,18 @@ package kafka
 
 import (
 	"log"
-	"time"
 
 	confluentkafka "github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 )
 
-type (
-	consumer struct {
-		consumer        *confluentkafka.Consumer
-		topic           string
-		retryEnabled    bool
-		maxAttempts     int
-		backoffDuration time.Duration
-	}
-)
+type consumer struct {
+	consumer *confluentkafka.Consumer
+	topic    string
+}
 
-func newConsumer(broker, group, topic string, retryEnabled bool, maxAttempts int, backoffDuration time.Duration) (*consumer, error) {
+func newConsumer(broker, group, topic string) (*consumer, error) {
 	conf := confluentkafka.ConfigMap{
 		"bootstrap.servers":    broker,
 		"group.id":             group,
@@ -35,11 +29,8 @@ func newConsumer(broker, group, topic string, retryEnabled bool, maxAttempts int
 	}
 
 	return &consumer{
-		consumer:        kafkaConsumer,
-		topic:           topic,
-		retryEnabled:    retryEnabled,
-		maxAttempts:     maxAttempts,
-		backoffDuration: backoffDuration,
+		consumer: kafkaConsumer,
+		topic:    topic,
 	}, nil
 }
 
@@ -52,11 +43,6 @@ func (c consumer) consume(handler func() error, attempt int) error {
 		}
 
 		log.Printf("error while consuming message: %v", err)
-
-		if c.retryEnabled && attempt <= c.maxAttempts {
-			time.Sleep(c.backoffDuration)
-			err = c.consume(handler, attempt+1)
-		}
 	}()
 
 	err = c.consumer.SubscribeTopics([]string{c.topic}, nil)
@@ -90,6 +76,10 @@ func (c consumer) consume(handler func() error, attempt int) error {
 			log.Printf("ignored: %v", spew.Sdump(eventType))
 		}
 	}
+}
+
+func (c consumer) close() error {
+	return c.consumer.Close()
 }
 
 type producer struct {
