@@ -31,30 +31,32 @@ func TestConsumer_Fail_Retry(t *testing.T) {
 	wg.Add(maxAttempts)
 	go func() {
 		attempt := 1
-		handler := func() error {
+		consumeHandler := func() error {
 			defer wg.Done()
 			calledTimes++
 			log.Printf("called times: %v", calledTimes)
 			return errors.New("something went wrong")
 		}
-		err = consumer.consume(handler, attempt)
+		// attempt 1
+		log.Printf("attempt: %v", attempt)
+		err = consumer.consume(consumeHandler)
 		if err != nil {
 			log.Printf("failed to consume: %v", err)
 			err = consumer.close()
 			if err != nil {
 				log.Printf("failed to close consumer: %v", err)
 			}
-			for attempt++; attempt <= maxAttempts; attempt++ {
-				time.Sleep(backoffDuration)
-				log.Printf("attempt: %v", attempt)
-				consumer, err = newConsumer(broker, group, topic)
-				err = consumer.consume(handler, attempt)
+			time.Sleep(backoffDuration)
+			attempt++
+			// attempt 2
+			log.Printf("attempt: %v", attempt)
+			consumer, err = newConsumer(broker, group, topic)
+			err = consumer.consume(consumeHandler)
+			if err != nil {
+				log.Printf("failed to consume: %v", err)
+				err = consumer.close()
 				if err != nil {
-					log.Printf("failed to consume: %v", err)
-					err = consumer.close()
-					if err != nil {
-						log.Printf("failed to close consumer: %v", err)
-					}
+					log.Printf("failed to close consumer: %v", err)
 				}
 			}
 		}

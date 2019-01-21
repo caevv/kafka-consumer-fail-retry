@@ -34,7 +34,7 @@ func newConsumer(broker, group, topic string) (*consumer, error) {
 	}, nil
 }
 
-func (c consumer) consume(handler func() error, attempt int) error {
+func (c consumer) consume(handler func() error) error {
 	var err error
 
 	defer func() {
