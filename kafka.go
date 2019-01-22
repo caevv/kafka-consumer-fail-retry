@@ -20,7 +20,7 @@ func newConsumer(broker, group, topic string) (*consumer, error) {
 		"session.timeout.ms":   6000,
 		"default.topic.config": confluentkafka.ConfigMap{"auto.offset.reset": "latest"},
 		"enable.auto.commit":   false,
-		"debug":                "consumer",
+		"debug":                "cgrp,topic,fetch",
 	}
 
 	kafkaConsumer, err := confluentkafka.NewConsumer(&conf)
