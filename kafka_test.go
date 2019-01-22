@@ -28,35 +28,35 @@ func TestConsumer_Fail_Retry(t *testing.T) {
 		t.Fatalf("failed to create new consumer: %v", err)
 	}
 
-	wg.Add(maxAttempts)
+	wg.Add(2)
 	go func() {
-		attempt := 1
 		consumeHandler := func() error {
-			defer wg.Done()
 			calledTimes++
 			log.Printf("called times: %v", calledTimes)
-			return errors.New("something went wrong")
-		}
-		// attempt 1
-		log.Printf("attempt: %v", attempt)
-		err = consumer.consume(consumeHandler)
-		if err != nil {
-			log.Printf("failed to consume: %v", err)
-			err = consumer.close()
-			if err != nil {
-				log.Printf("failed to close consumer: %v", err)
+			if calledTimes%2 == 0 {
+				return errors.New("something went wrong")
 			}
-			time.Sleep(backoffDuration)
-			attempt++
-			// attempt 2
-			log.Printf("attempt: %v", attempt)
-			consumer, err = newConsumer(broker, group, topic)
-			err = consumer.consume(consumeHandler)
-			if err != nil {
-				log.Printf("failed to consume: %v", err)
-				err = consumer.close()
+			wg.Done()
+			return nil
+		}
+
+		for {
+			for attempt := 1; attempt <= maxAttempts; attempt++ {
+				log.Printf("attempt: %v", attempt)
+				err = consumer.consume(consumeHandler)
 				if err != nil {
-					log.Printf("failed to close consumer: %v", err)
+					log.Printf("failed to consume: %v", err)
+					err = consumer.close()
+					if err != nil {
+						log.Printf("failed to close consumer: %v", err)
+					}
+					time.Sleep(backoffDuration)
+					consumer, err = newConsumer(broker, group, topic)
+					if err != nil {
+						log.Fatalf("failed to create new consumer: %v", err)
+					}
+				} else {
+					break
 				}
 			}
 		}
@@ -69,15 +69,24 @@ func TestConsumer_Fail_Retry(t *testing.T) {
 		t.Fatalf("failed to create new producer: %v", err)
 	}
 
-	err = producer.produce("test-topic", []byte("test-message"))
-	if err != nil {
-		t.Fatalf("failed to produce message: %v", err)
+	messages := [][]byte{
+		[]byte("test-message 1"),
+		[]byte("test-message 2"),
+	}
+
+	for _, message := range messages {
+		err = producer.produce("test-topic", message)
+		if err != nil {
+			t.Fatalf("failed to produce message: %v", err)
+		}
 	}
 
 	waitTimeout(&wg, 30*time.Second)
 
-	if calledTimes != maxAttempts {
-		t.Fatalf("expected %v attempts, got: %v", maxAttempts, calledTimes)
+	expected := 3
+
+	if expected != calledTimes {
+		t.Fatalf("expected: %v called times, got: %v", expected, calledTimes)
 	}
 }
 

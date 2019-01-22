@@ -20,7 +20,7 @@ func newConsumer(broker, group, topic string) (*consumer, error) {
 		"session.timeout.ms":   6000,
 		"default.topic.config": confluentkafka.ConfigMap{"auto.offset.reset": "latest"},
 		"enable.auto.commit":   false,
-		"debug":                "cgrp,topic,fetch",
+		"debug":                "consumer",
 	}
 
 	kafkaConsumer, err := confluentkafka.NewConsumer(&conf)
@@ -62,12 +62,17 @@ func (c consumer) consume(handler func() error) error {
 		case *confluentkafka.Message:
 			log.Println("deserialize message")
 
+			log.Println("handle message")
 			err = handler()
 			if err != nil {
 				return errors.Wrap(err, "failed to handle message")
 			}
 
-			log.Println("commit")
+			log.Println("commit offset")
+			_, err := c.consumer.Commit()
+			if err != nil {
+				return errors.Wrap(err, "failed to commit")
+			}
 		case confluentkafka.PartitionEOF:
 			log.Println("reached end of queue")
 		case confluentkafka.Error:
