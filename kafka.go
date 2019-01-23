@@ -18,7 +18,7 @@ func newConsumer(broker, group, topic string) (*consumer, error) {
 		"bootstrap.servers":    broker,
 		"group.id":             group,
 		"session.timeout.ms":   6000,
-		"default.topic.config": confluentkafka.ConfigMap{"auto.offset.reset": "latest"},
+		"default.topic.config": confluentkafka.ConfigMap{"auto.offset.reset": "earliest"},
 		"enable.auto.commit":   false,
 		"debug":                "cgrp,topic,fetch",
 	}
